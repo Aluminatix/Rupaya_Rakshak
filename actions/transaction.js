@@ -119,6 +119,77 @@ export async function getTransaction(id) {
     return serializeAmount(transaction);
 }
 
+export async function updateTransaction(id, data) {
+  try{
+    const { userId } = await auth();
+    if (!userId) throw new Error("Unauthorized");
+  
+    const user = await db.user.findUnique({
+      where: { clerkUserId: userId },
+    });
+  
+    if (!user) throw new Error("User not found");
+
+    // get original transaction to calculate balance change
+    const originalTransaction = await db.transaction.findUnique({
+      where: {
+        id,
+        userId: user.id,
+      },
+      include: {
+        account: type,
+      },
+    });
+
+    if(!originalTransaction) throw new Error("Transaction not found");
+    const oldBalnaceChange = originalTransaction.type === "EXPENSE"
+    ? -originalTransaction.amount.toNumber()
+    : originalTransaction.amount.toNumber();
+
+    const newBalanceChange = 
+    data.type === "EXPENSE" ? -data.amount : data.amount;
+
+    const netBalanceChange = newBalanceChange - oldBalnaceChange;
+
+    // update transaction and account balance in a transaction
+    const transaction = await db.$transaction(async (tx)=>{
+      const updated = await tx.transaction.update({
+        where: {
+          id,
+          userId: user.id,
+        },
+        data: {
+          ...data,
+          nextRecurringDate:
+            data.isRecurring && data.recurringInterval
+              ? calculateNextRecurringDate(data.date, data.recurringInterval)
+              : null,
+        }
+      });
+
+      //update account balance
+      await tx.account.update({
+        where: {id: data.accountId},
+        data: {
+          balance: {
+            increment: newBalanceChange,
+          }
+        }
+      });
+
+      return updated;
+
+    });
+
+    revalidatePath("/dashboard");
+    revalidatePath(`/account/${data.accountId}`);
+
+    return {success: true, data: serializeAmount(transaction)};
+  } catch(error){
+    throw new Error(error.message);
+  }
+}
+
 // Helper function to calculate next recurring date
 function calculateNextRecurringDate(startDate, interval) {
     const date = new Date(startDate);
@@ -143,7 +214,7 @@ function calculateNextRecurringDate(startDate, interval) {
 
 export async function scanReceipt(file) {
     try{
-       const model = genAI.getGenerativeModel({modle: "gemini-1.5-flash"});
+       const model = genAI.getGenerativeModel({model: "gemini-1.5-flash"});
        // convert file to arrayBuffer
        const arrayBuffer = await file.arrayBuffer();
        
@@ -176,8 +247,8 @@ export async function scanReceipt(file) {
                 data: base64String,
                 mimeType: file.type,
             },
-            prompt,
-        },
+          },
+          prompt,
        ]);
 
        const response = await result.response;
