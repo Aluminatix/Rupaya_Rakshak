@@ -1,6 +1,6 @@
 "use client";
 
-import { createTransaction } from "@/actions/transaction";
+import { createTransaction, updateTransaction } from "@/actions/transaction";
 import { transactionSchema } from "@/app/lib/schema";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -9,30 +9,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import useFetch from "@/hooks/use-fetch";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { CalendarIcon, Loader2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import ReciptScanner from "./recipt-scanner";
-
-const handleScanComplete = (scannedData) => {
-  if (scannedData) {
-    setValue("amount", scannedData.amount.toString());
-    setValue("date", new Date(scannedData.date));
-    if (scannedData.description) {
-      setValue("description", scannedData.description);
-    }
-    if (scannedData.category) {
-      setValue("category", scannedData.category);
-    }
-    toast.success("Receipt scanned successfully");
-  }
-};
+import { Input } from "@/components/ui/input";
+import CreateAccountDrawer from "@/components/create-account-drawer";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 
-const AddTransactionForm = ({ accounts, categories }) => {
+
+
+const AddTransactionForm = ({ accounts, categories, editMode=false,initialData=null, }) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
+
   const{
     register,
     setValue,
@@ -43,7 +38,22 @@ const AddTransactionForm = ({ accounts, categories }) => {
     reset,
   } = useForm({
     resolver: zodResolver(transactionSchema),
-    defaultValues: {
+    defaultValues: 
+    editMode && initialData?
+    {
+      type: initialData.type,
+      amount: initialData.amount.toString(),
+      description: initialData.description,
+      accountId: initialData.accountId,
+      category: initialData.category,
+      date: new Date(initialData.date),
+      isRecurring: initialData.isRecurring,
+      ...(initialData.recurringInterval && {
+        recurringInterval: initialData.recurringInterval,
+      }),
+    }
+    :
+    {
       type: "EXPENSE",
       amount: "",
       description: "",
@@ -57,7 +67,7 @@ const AddTransactionForm = ({ accounts, categories }) => {
     loading: transactionLoading,
     fn: transactionFn,
     data: transactionResult,
-  } = useFetch(createTransaction);
+  } = useFetch(editMode ? updateTransaction : createTransaction);
   
   const type = watch("type");
   const isRecurring = watch("isRecurring");
@@ -68,12 +78,30 @@ const AddTransactionForm = ({ accounts, categories }) => {
         ...data,
         amount: parseFloat(data.amount),
     };
+    if(editMode) {
+      transactionFn(editId,formData);
+    } else{
     transactionFn(formData);
+    }
   };
 
   const filteredCategories = categories.filter(
     (category) => category.type === type
   );
+
+  const handleScanComplete = (scannedData) => {
+    if (scannedData) {
+      setValue("amount", scannedData.amount.toString());
+      setValue("date", new Date(scannedData.date));
+      if (scannedData.description) {
+        setValue("description", scannedData.description);
+      }
+      if (scannedData.category) {
+        setValue("category", scannedData.category);
+      }
+      toast.success("Receipt scanned successfully");
+    }
+  };
 
   useEffect(() => {
     if (transactionResult?.success && !transactionLoading) {
@@ -91,7 +119,8 @@ const AddTransactionForm = ({ accounts, categories }) => {
   return (
     <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
       {/* AI Receipt Scanner */}
-      <ReciptScanner onScanComplete = {handleScanComplete}/>
+
+      {!editMode && <ReciptScanner onScanComplete = {handleScanComplete}/> }
       <div className="space-y-2">
         <label className="text-sm font-medium">Type</label>
         <Select
