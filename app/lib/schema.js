@@ -7,8 +7,7 @@ export const accountSchema = z.object({
   isDefault: z.boolean().default(false),
 });
 
-export const transactionSchema = z
-  .object({
+export const transactionSchema = z.object({
     type: z.enum(["INCOME", "EXPENSE"]),
     amount: z.string().min(1, "Amount is required"),
     description: z.string().optional(),
@@ -16,8 +15,8 @@ export const transactionSchema = z
     accountId: z.string().min(1, "Account is required"),
     category: z.string().min(1, "Category is required"),
     isRecurring: z.boolean().default(false),
-    recurringInterval: z
-      .enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"])
+    recurringInterval: 
+      z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"])
       .optional(),
   })
   .superRefine((data, ctx) => {
