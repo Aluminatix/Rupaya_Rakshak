@@ -2,6 +2,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/header";
 import { ClerkProvider } from "@clerk/nextjs";
+import { Toaster } from "sonner";
 
 
 const geistSans = Geist({
@@ -32,11 +33,11 @@ export default function RootLayout({ children }) {
         <Header/>
 
         <main className="min-h-screen"> {children} </main>
-
+        <Toaster richColors /> 
         {/*footer*/}
-        <footer className="bg-yellow-100 py-6">
+        <footer className="bg-blue-50 py-6">
           <div className="container mx-auto px-4 text-center">
-            <p>End of the page</p>
+            <p>&lt;&gt; Expense Tracker &lt;/&gt;</p>
           </div>
         </footer>
       </body>
